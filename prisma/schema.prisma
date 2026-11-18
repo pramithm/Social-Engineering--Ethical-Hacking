@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Department {
+  id                      String              @id @default(cuid())
+  name                    String              @unique
+  code                    String              @unique
+  description             String
+  riskScore               Float               @default(35.0) // 0-100, lower is better
+  cultureScore            Float               @default(72.0) // 0-100, higher is better
+  failureRate             Float               @default(14.5) // %
+  reportRate              Float               @default(68.2) // %
+  avgDwellTimeSeconds     Float               @default(145.0)
+  authorityBiasScore      Float               @default(45.0) // % vulnerability to authority lure
+  urgencySusceptibility   Float               @default(40.0) // % vulnerability to urgent lure
+  recommendedIntervention String
+  users                   User[]
+  cultureAssessments      CultureAssessment[]
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+}
+
+model User {
+  id                       String              @id @default(cuid())
+  name                     String
+  email                    String              @unique
+  role                     String
+  departmentId             String
+  department               Department          @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  riskScore                Float               @default(25.0)
+  phishingSimulationsCount Int                 @default(0)
+  phishingFailuresCount    Int                 @default(0)
+  phishingReportsCount     Int                 @default(0)
+  lastSimulationDate       DateTime?
+  simulationEvents         SimulationEvent[]
+  cultureAssessments       CultureAssessment[]
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+}
+
+model Countermeasure {
+  id                 String     @id @default(cuid())
+  name               String
+  type               String     // WARNING_BANNER, TEACHABLE_MOMENT, MICRO_TRAINING, REPORT_BUTTON
+  description        String
+  bannerText         String?
+  bannerSeverity     String?    // INFO, WARNING, DANGER
+  isActive           Boolean    @default(true)
+  efficacyRate       Float      @default(0.0) // % risk reduction
+  controlFailureRate Float      @default(26.4)
+  testFailureRate    Float      @default(5.8)
+  trainingModuleJson String?    // JSON content for interactive quiz
+  campaigns          Campaign[]
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+}
+
+model Campaign {
+  id                     String            @id @default(cuid())
+  name                   String
+  description            String
+  vectorType             String            // CREDENTIAL_HARVESTING, CEO_PRETEXTING, IT_VPN_RESET, FAKE_MFA_PROMPT
+  difficulty             String            @default("MEDIUM") // LOW, MEDIUM, HIGH
+  status                 String            @default("ACTIVE") // ACTIVE, COMPLETED, SCHEDULED
+  targetDepartment       String            @default("All Departments")
+  targetCount            Int               @default(0)
+  clickCount             Int               @default(0)
+  submitCount            Int               @default(0)
+  reportCount            Int               @default(0)
+  avgTimeToReportSeconds Float             @default(0.0)
+  countermeasureId       String?
+  countermeasure         Countermeasure?   @relation(fields: [countermeasureId], references: [id], onDelete: SetNull)
+  hasABTest              Boolean           @default(true)
+  controlGroupRate       Float?            @default(25.0)
+  testGroupRate          Float?            @default(6.5)
+  emailSubject           String
+  senderName             String
+  senderEmail            String
+  emailBodyHtml          String
+  landingPageHtml        String
+  redFlags               String            // JSON string array of red flags
+  events                 SimulationEvent[]
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+}
+
+model SimulationEvent {
+  id                    String    @id @default(cuid())
+  campaignId            String
+  campaign              Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  userId                String?
+  user                  User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  token                 String    @unique
+  eventType             String    // SENT, DELIVERED, CLICKED, SUBMITTED, REPORTED
+  timeToInteractSeconds Float?
+  countermeasureApplied Boolean   @default(false)
+  countermeasureType    String?
+  ipAddress             String?   @default("127.0.0.1")
+  userAgent             String?   @default("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Simulation-Agent")
+  details               String?   // Zero-credential policy: No passwords stored!
+  createdAt             DateTime  @default(now())
+}
+
+model CultureAssessment {
+  id                       String     @id @default(cuid())
+  userId                   String?
+  user                     User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  departmentId             String
+  department               Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  overallScore             Float      // 0-100
+  attitudesScore           Float      // 0-100
+  behaviorsScore           Float      // 0-100
+  cognitionScore           Float      // 0-100
+  complianceScore          Float      // 0-100
+  reportingConfidenceScore Float      // 0-100
+  answersJson              String     // JSON answers
+  respondentRole           String?
+  createdAt                DateTime   @default(now())
+}
+
+model SystemAuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  actor     String   @default("Security Admin")
+  module    String   // MODULE_1_SIMULATION, MODULE_2_COUNTERMEASURES, MODULE_3_CULTURE
+  details   String
+  severity  String   @default("INFO") // INFO, SECURITY_AUDIT, POLICY_ENFORCED
+  createdAt DateTime @default(now())
+}
